@@ -1,5 +1,6 @@
-__version__ = '${version}'
-
+from cfn_sphere import differ
+from cfn_sphere.stack_configuration import StackConfig, Config
+from cfn_sphere.template import CloudFormationTemplate
 from cfn_sphere.template.transformer import CloudFormationTemplateTransformer
 from cfn_sphere.stack_configuration.dependency_resolver import DependencyResolver
 from cfn_sphere.stack_configuration.parameter_resolver import ParameterResolver
@@ -8,6 +9,8 @@ from cfn_sphere.file_loader import FileLoader
 from cfn_sphere.aws.cfn import CloudFormationStack
 from cfn_sphere.custom_resources import CustomResourceHandler
 from cfn_sphere.util import get_logger
+
+__version__ = '${version}'
 
 
 class StackActionHandler(object):
@@ -64,3 +67,33 @@ class StackActionHandler(object):
                 self.cfn.delete_stack(stack)
             else:
                 self.logger.info("Stack {0} is already deleted".format(stack_name))
+
+    def diff_stacks(self):
+        existing_stacks = self.cfn.get_stack_names()
+        stacks = self.config.stacks
+
+        stack_processing_order = DependencyResolver().get_stack_order(stacks)
+
+        for stack_name in stack_processing_order:
+            stack_config = self.config.stacks.get(stack_name)
+            if stack_name in existing_stacks:
+                raw_template = FileLoader.get_file_from_url(stack_config.template_url, stack_config.working_dir)
+                template = CloudFormationTemplateTransformer.transform_template(raw_template)
+
+                used_template = self.cfn.get_stack_template(stack_name)
+                diff = differ.get_diff_string(used_template.get_template_body_dict(), template.get_template_body_dict())
+
+                if diff:
+                    self.logger.info("Stack {0} was modified:\n{1}".format(stack_name, diff))
+                else:
+                    self.logger.info("Stack {0} does not need an update".format(stack_name))
+            else:
+                self.logger.info("Stack {0} does not exist yet".format(stack_name))
+
+
+if __name__ == '__main__':
+    config = Config(config_file='../../../integrationtest/resources/stacks.yml')
+    handler = StackActionHandler(config)
+    import logging
+    handler.logger.setLevel(logging.INFO)
+    handler.diff_stacks()

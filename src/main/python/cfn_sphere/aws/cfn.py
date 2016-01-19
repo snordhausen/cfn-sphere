@@ -1,8 +1,10 @@
+import json
 import logging
 import time
 from datetime import timedelta
 from boto import cloudformation
 from boto.exception import BotoServerError
+from cfn_sphere.template import CloudFormationTemplate
 from cfn_sphere.util import get_logger, get_cfn_api_server_time, get_pretty_parameters_string, with_boto_retry
 from cfn_sphere.exceptions import CfnStackActionFailedException, CfnSphereBotoError
 
@@ -67,6 +69,12 @@ class CloudFormation(object):
             return self.conn.describe_stacks(stack_name)[0]
         except BotoServerError as e:
             raise CfnSphereBotoError(e)
+
+    def get_stack_template(self, stack_name):
+        stack = self.get_stack(stack_name)
+        template_dict = json.loads(stack.get_template()['GetTemplateResponse']['GetTemplateResult']['TemplateBody'])
+
+        return CloudFormationTemplate(template_dict, None)
 
     def validate_stack_is_ready_for_action(self, stack):
         try:
