@@ -211,6 +211,11 @@ class StackConfigTests(TestCase):
         self.assertIsNone(get_git_repository_remote_url(tempfile.mkdtemp()))
 
     @patch("cfn_sphere.util.Repo")
+    def test_get_git_repository_remote_url_returns_none_if_workdir_is_none(self, repo_mock):
+        repo_mock.side_effect = InvalidGitRepositoryError
+        self.assertIsNone(get_git_repository_remote_url(None))
+
+    @patch("cfn_sphere.util.Repo")
     def test_get_git_repository_remote_url_returns_repo_url(self, repo_mock):
         url = "http://config.repo.git"
         repo_mock.return_value.remotes.origin.url = url
